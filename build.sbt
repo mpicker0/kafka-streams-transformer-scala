@@ -10,5 +10,7 @@ libraryDependencies ++= Seq(
   "org.apache.kafka" % "kafka-clients" % "2.3.0",
   "org.apache.kafka" % "kafka-streams" % "2.3.0",
   "org.apache.kafka" %% "kafka-streams-scala" % "2.3.0",
-  "ch.qos.logback" % "logback-classic" % "1.2.3"
+  "org.apache.kafka" % "kafka-streams-test-utils" % "2.3.0" % Test,
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "org.scalatest" %% "scalatest" % "3.0.8" % Test
   )
