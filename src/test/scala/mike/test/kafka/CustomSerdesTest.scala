@@ -3,7 +3,7 @@ package mike.test.kafka
 import java.util.Properties
 
 import mike.test.kafka.serdes.{GreetingJsonSerializer, Greeting, GreetingJsonDeserializer}
-import org.apache.kafka.common.serialization.{StringSerializer, StringDeserializer, Serde}
+import org.apache.kafka.common.serialization.{StringSerializer, Serde, StringDeserializer}
 import org.apache.kafka.common.serialization.Serdes.serdeFrom
 import org.apache.kafka.streams.StreamsConfig
 import org.apache.kafka.streams.scala.StreamsBuilder
@@ -11,19 +11,49 @@ import org.apache.kafka.streams.scala.Serdes._
 import org.apache.kafka.streams.scala.ImplicitConversions._
 import org.scalatest.{FunSpecLike, Matchers}
 import org.apache.kafka.streams.TopologyTestDriver
+import org.apache.kafka.streams.errors.{StreamsException, LogAndContinueExceptionHandler}
 import org.apache.kafka.streams.test.OutputVerifier
 import org.apache.kafka.streams.test.ConsumerRecordFactory
 
 class CustomSerdesTest extends FunSpecLike with Matchers with CustomSerdesTestConfig {
-  describe("map") {
-    it("should add a ! to the end of the greeting") {
-      val inRecord = factory.create(SourceTopic, "not used", Greeting("Hello world"))
+  describe("normal serde testing") {
+    it("map should add a ! to the end of the greeting") {
+      val inRecord = standardSerdeFactory.create(SourceTopic, "not used", Greeting("Hello world"))
 
       testDriver.pipeInput(inRecord)
 
       val outRecord = testDriver.readOutput(OutputTopic, stringDeserializer, greetingDeserializer)
       OutputVerifier.compareKeyValue(outRecord, "not used", Greeting("Hello world!"))
       testDriver.readOutput(OutputTopic, stringDeserializer, greetingDeserializer) shouldBe null
+    }
+  }
+  // In these tests, we create data on the input topic as a string; this allows for easier testing of errors
+  describe("strings on the input topic testing") {
+    // this is the happy path, and is just like the test above except we specify the Greeting directly as
+    // a JSON string
+    it("should add a ! to the end of the greeting") {
+      val inRecord = stringInputFactory.create(SourceTopic, "not used", """{"message":"Hello world"}""")
+
+      testDriver.pipeInput(inRecord)
+
+      val outRecord = testDriver.readOutput(OutputTopic, stringDeserializer, greetingDeserializer)
+      OutputVerifier.compareKeyValue(outRecord, "not used", Greeting("Hello world!"))
+      testDriver.readOutput(OutputTopic, stringDeserializer, greetingDeserializer) shouldBe null
+    }
+    // error testing
+    it("should throw if no exception handler is configured") {
+      val inRecord = stringInputFactory.create(SourceTopic, "not used", "{this is not valid json}")
+
+      a[StreamsException] shouldBe thrownBy {
+        testDriver.pipeInput(inRecord)
+      }
+    }
+    it("should continue when the exception handler is configured") {
+      val inRecord = stringInputFactory.create(SourceTopic, "not used", "{this is not valid json}")
+
+      exceptionHandlingTestDriver.pipeInput(inRecord)
+
+      exceptionHandlingTestDriver.readOutput(OutputTopic, stringDeserializer, greetingDeserializer) shouldBe null
     }
   }
 }
@@ -48,7 +78,18 @@ trait CustomSerdesTestConfig {
     Greeting(s"${greeting.message}!")
   }.to(OutputTopic)
 
+  // for testing the normal path, mapping Greeting to Greeting
   val topology = builder.build
   val testDriver = new TopologyTestDriver(topology, props)
-  val factory = new ConsumerRecordFactory[String, Greeting](SourceTopic, stringSerializer, greetingSerializer)
+  val standardSerdeFactory = new ConsumerRecordFactory[String, Greeting](SourceTopic, stringSerializer, greetingSerializer)
+
+  // for testing errors, mapping String to Greeting
+  val stringInputFactory = new ConsumerRecordFactory[String, String](SourceTopic, stringSerializer, stringSerializer)
+
+  // for testing that errors are properly intercepted
+  val exceptionHandlingProps = new Properties()
+  exceptionHandlingProps.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "unused in test")
+  exceptionHandlingProps.put(StreamsConfig.APPLICATION_ID_CONFIG, "filter-transform-test")
+  exceptionHandlingProps.put(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, classOf[LogAndContinueExceptionHandler])
+  val exceptionHandlingTestDriver = new TopologyTestDriver(topology, exceptionHandlingProps)
 }

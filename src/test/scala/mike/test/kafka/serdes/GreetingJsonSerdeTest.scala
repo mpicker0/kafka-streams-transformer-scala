@@ -1,5 +1,6 @@
 package mike.test.kafka.serdes
 
+import org.json4s.ParserUtil.ParseException
 import org.scalatest.{FunSpecLike, Matchers}
 
 class GreetingJsonSerdeTest extends FunSpecLike with Matchers {
@@ -18,6 +19,13 @@ class GreetingJsonSerdeTest extends FunSpecLike with Matchers {
     it("should convert a byte array into a Greeting") {
       val greeting = deserializer.deserialize("not used", """{"message":"Hello world"}""".getBytes)
       greeting shouldBe Greeting("Hello world")
+    }
+  }
+  describe("exceptions") {
+    it("should fail to convert a byte array into a Greeting") {
+      a[ParseException] shouldBe thrownBy {
+        deserializer.deserialize("not used", "this isn't valid JSON".getBytes)
+      }
     }
   }
 }
