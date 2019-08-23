@@ -226,3 +226,25 @@ Type some words into the producer, such as
 
 You should see summary output with the word counts on the output topic,
 though it may be a few seconds before it actually prints.
+
+Multi-source
+============
+
+This example creates two separate stream processors that write to the same
+output topic.  The streams are created independently and must have different
+application IDs.
+
+Layout
+------
+
+    +----------------+     +----------------------+
+    |  source-topic  |     |  other-source-topic  |
+    +--+-------------+     +------+---------------+
+       |                          |
+       |                          |
+       | filter (toLowercase)     | filter (toUpperCase)
+       |                          |
+       v                          v
+    +-----------------------------------------+
+    |         transformed-topic               |
+    +-----------------------------------------+
