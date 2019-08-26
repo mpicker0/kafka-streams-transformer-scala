@@ -11,8 +11,10 @@ import java.util.Properties
 /** Read from multiple source topics; produce to a single output topic */
 object MultiSource extends App with Stream1Config with Stream2Config {
     val bootstrap = if (args.length > 0) args(0) else "localhost:9092"
-    val stream1 = getStream1(bootstrap)
-    val stream2 = getStream2(bootstrap)
+    val baseProps = new Properties
+    baseProps.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap)
+    val stream1 = getStream1(baseProps)
+    val stream2 = getStream2(baseProps)
 
     stream1.start()
     stream2.start()
@@ -24,9 +26,9 @@ object MultiSource extends App with Stream1Config with Stream2Config {
 }
 
 trait Stream1Config {
-    def getStream1(bootstrap: String): KafkaStreams = {
+    def getStream1(baseProps: Properties): KafkaStreams = {
         val props = new Properties
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap)
+        props.putAll(baseProps)
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-transformer-scala-stream1")
 
         val builder = new StreamsBuilder
@@ -40,9 +42,9 @@ trait Stream1Config {
 }
 
 trait Stream2Config {
-    def getStream2(bootstrap: String): KafkaStreams = {
+    def getStream2(baseProps: Properties): KafkaStreams = {
         val props = new Properties
-        props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrap)
+        props.putAll(baseProps)
         props.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-streams-transformer-scala-stream2")
 
         val builder = new StreamsBuilder
